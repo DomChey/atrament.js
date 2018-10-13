@@ -52,7 +52,10 @@ class Atrament {
     const mouseDown = (mousePosition) => {
       mousePosition.preventDefault();
       // update position just in case
-      mouseMove(mousePosition);
+        mouseMove(mousePosition);
+
+        // since a new stroke begins add new pointGroup to data
+        this._data.push([]);
 
       // if we are filling - fill and return
       if (this._mode === 'fill') {
@@ -115,6 +118,9 @@ class Atrament {
     this._weight = 2;
     this._mode = 'draw';
     this._adaptive = true;
+
+    //to store the points for undo functionality
+    this._data = [];
   }
 
   static lineDistance(x1, y1, x2, y2) {
@@ -210,6 +216,7 @@ class Atrament {
       context.lineWidth = this._weight;
     }
 
+
     // draw using quad interpolation
     context.quadraticCurveTo(mouse.px, mouse.py, mouse.x, mouse.y);
     context.stroke();
@@ -217,6 +224,13 @@ class Atrament {
     // remember
     mouse.px = mouse.x;
     mouse.py = mouse.y;
+
+      this._data[this._data.length - 1].push({
+          x: mouse.x,
+          y: mouse.y,
+          lineWidth: context.lineWidth,
+          color: this.context.strokeStyle
+      });
   }
 
   get color() {
@@ -340,6 +354,43 @@ class Atrament {
     }
   }
 
+    // function to remove last stroke that was drawn
+    removeLastStroke() {
+        // only remove if there is anything
+        if (this._data && this._data.length){
+            // now remove last stroke from data
+            this._data.pop();
+        }
+    }
+
+    // redraw everything that is in data
+    redrawAll() {
+        var context = this.context;
+
+        // check if anything is in data
+        if (this._data && this._data.length > 0){
+            this._dirty = true;
+            for (var i = 0; i < this._data.length; i++){
+                var stroke = this._data[i];
+                // check if more than one point in stroke and then draw
+                if (stroke.length > 1){
+                    context.beginPath();
+                    var prevPoint = stroke[0];
+                    // color is the same for whole stroke set it only once
+                    context.strokeStyle = prevPoint.color;
+                    for (var j = 1; j < stroke.length; j++){
+                        var currPoint = stroke[j];
+                        context.lineWidth = currPoint.lineWidth;
+                        context.quadraticCurveTo(prevPoint.x, prevPoint.y, currPoint.x, currPoint.y);
+                        context.stroke();
+                        prevPoint = stroke[j];
+                    }
+                    context.closePath();
+                }
+            }
+        }       
+    }
+
   _floodFill(_startX, _startY, startColor) {
     const context = this.context;
     const startX = Math.floor(_startX);
@@ -428,6 +479,5 @@ class Atrament {
 function atrament(selector, width, height, color) {
   return new Atrament(selector, width, height, color);
 }
-
 module.exports = atrament;
 module.exports.Atrament = Atrament;
